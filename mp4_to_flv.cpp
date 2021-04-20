@@ -1,4 +1,5 @@
 #include "mp4_to_flv.h"
+#include <stdio.h>
 #include <iostream>
 extern "C"{
 #include "libavutil/avutil.h"
@@ -11,8 +12,16 @@ void println(const char* str)
     std::cout << str << std::endl;
 }
 
+static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt, const char *tag)
+{
+    AVRational *time_base = &fmt_ctx->streams[pkt->stream_index]->time_base;
+    printf("%s: pts: %d, timebase: %d\n", tag, pkt->pts, time_base->den);
+    //printf("%s: pts:%s pts_time:%s dts:%s dts_time:%s duration:%s duration_time:%s stream_index:%d\n", tag, av_ts2str(pkt->pts), av_ts2timestr(pkt->pts, time_base), av_ts2str(pkt->dts), av_ts2timestr(pkt->dts, time_base), av_ts2str(pkt->duration), av_ts2timestr(pkt->duration, time_base), pkt->stream_index);
+}
+
 void mp4_to_flv(const char* input_file, const char* output_file)
 {
+    println("mp4 to flv");
     AVOutputFormat* outfmt = NULL;
     AVFormatContext* ifmt_ctx = NULL;
     AVFormatContext* ofmt_ctx = NULL;
@@ -45,6 +54,7 @@ void mp4_to_flv(const char* input_file, const char* output_file)
         return;
     }
 
+    println("calc istream count");
     int stream_index = 0;
     for (int i = 0; i < istream_count; ++i)
     {
@@ -74,14 +84,70 @@ void mp4_to_flv(const char* input_file, const char* output_file)
         }
         out_stream->codecpar->codec_tag = 0;
     }
-
+    std::cout << "stream count: " << stream_index << std::endl;
     av_dump_format(ofmt_ctx, 0, output_file, 0);
-
+    println("start to convert...");
+    //下面这里是做什么？？？
     if (ofmt_ctx->flags & AVFMT_NOFILE)
     {
         ret = avio_open(&ofmt_ctx->pb, output_file, AVIO_FLAG_WRITE);
-
+        if (ret < 0)
+        {
+            println("error 777");
+            return;
+        }
     }
+
+    if ((ret = avformat_write_header(ofmt_ctx, NULL)) < 0)
+    {
+        println("error 888");
+        return;
+    }
+    println("start to convert...action.");
+    AVPacket pkt;
+    while(true)
+    {
+        AVStream* in_stream;
+        AVStream* out_stream;
+        if ((ret = av_read_frame(ifmt_ctx, &pkt)) < 0)
+        {
+            println("read frame error.");
+            break;
+        }
+        in_stream = ifmt_ctx->streams[pkt.stream_index];
+        if (pkt.stream_index >= istream_count ||
+            stream_mapping[pkt.stream_index] < 0)
+        {
+            av_packet_unref(&pkt);
+            continue;
+        }
+        pkt.stream_index = stream_mapping[pkt.stream_index];
+        out_stream = ofmt_ctx->streams[pkt.stream_index];
+        log_packet(ifmt_ctx, &pkt, "in");
+
+        pkt.pts = av_rescale_q_rnd(pkt.pts, in_stream->time_base, out_stream->time_base, (AVRounding)(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX));
+        pkt.dts = av_rescale_q_rnd(pkt.dts, in_stream->time_base, out_stream->time_base, (AVRounding)(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX));
+        pkt.duration = av_rescale_q(pkt.duration, in_stream->time_base, out_stream->time_base);
+        pkt.pos = -1;
+        log_packet(ofmt_ctx, &pkt, "out");
+
+        if ((ret = av_interleaved_write_frame(ofmt_ctx, &pkt)) < 0)
+        {
+            println("error 999");
+            break;
+        }
+        av_packet_unref(&pkt);
+    }
+    av_write_trailer(ofmt_ctx);
+    println("finish convert.");
+    avformat_close_input(&ifmt_ctx);
+    if (ofmt_ctx && !(ofmt_ctx->flags & AVFMT_NOFILE))
+    {
+        avio_closep(&ofmt_ctx->pb);
+    }
+    avformat_free_context(ofmt_ctx);
+    avformat_free_context(ifmt_ctx);
+    av_freep(&stream_mapping);
 
 }
 

@@ -5,6 +5,7 @@ extern "C"{
 #include "libavformat/avformat.h"
 }
 #include "ffmpeg_test_op.h"
+#include "mp4_to_flv.h"
 
 void init()
 {
@@ -49,7 +50,8 @@ int main(int argc, char *argv[])
     //dump_test();
 
     //extra_audio("G:\\video\\test1.mp4", "G:\\video\\test1.aac");
-    extra_video("G:\\video\\test1.mp4", "G:\\video\\test1.h264");
+    //extra_video("G:\\video\\test1.mp4", "G:\\video\\test1.h264");
+    mp4_to_flv("G:\\video\\test1.mp4", "G:\\video\\test1.flv");
 
     return a.exec();
 }
