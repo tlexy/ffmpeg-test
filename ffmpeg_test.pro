@@ -16,7 +16,8 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
         main.cpp \
-    ffmpeg_test_op.cpp
+    ffmpeg_test_op.cpp \
+    mp4_to_flv.cpp
 
 INCLUDEPATH += \
     $$PWD/../ffmpeg/include
@@ -36,4 +37,5 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 HEADERS += \
-    ffmpeg_test_op.h
+    ffmpeg_test_op.h \
+    mp4_to_flv.h
