@@ -85,10 +85,10 @@ void mp4_to_flv(const char* input_file, const char* output_file)
         out_stream->codecpar->codec_tag = 0;
     }
     std::cout << "stream count: " << stream_index << std::endl;
-    av_dump_format(ofmt_ctx, 0, output_file, 0);
+    av_dump_format(ofmt_ctx, 0, output_file, 1);
     println("start to convert...");
     //下面这里是做什么？？？
-    if (ofmt_ctx->flags & AVFMT_NOFILE)
+    if (!(ofmt_ctx->flags & AVFMT_NOFILE))
     {
         ret = avio_open(&ofmt_ctx->pb, output_file, AVIO_FLAG_WRITE);
         if (ret < 0)

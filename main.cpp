@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
 
     //extra_audio("G:\\video\\test1.mp4", "G:\\video\\test1.aac");
     //extra_video("G:\\video\\test1.mp4", "G:\\video\\test1.h264");
-    mp4_to_flv("G:\\video\\test1.mp4", "G:\\video\\test1.flv");
+    mp4_to_flv("G:\\video\\test1.mp4", "G:\\video\\test3.flv");
 
     return a.exec();
 }
