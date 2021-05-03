@@ -821,6 +821,7 @@ void pcm2aac2(const char* pcm_path, int channals, int bit_rates, int layout, con
             pos += c->frame_size * sizeof(uint16_t)*channals;
         }
     }
+    //如果不是1024有倍数呢？
     printf("flush data.\n");
     /* flush the encoder */
     encode(c, NULL, pkt, f);
