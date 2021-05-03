@@ -28,4 +28,10 @@ int alloc_and_copy(AVPacket *out,
 
 void extra_video(const char* input_file, const char* output_file);
 
+void file_to_image(const char* ifile, int st, int et, const char* prefix = "IMAGE");
+
+void pcm2aac(const char* pcm_file, int channals, int rates, int layout, const char* ofile);
+
+void pcm2aac2(const char* pcm_path, int channals, int bit_rates, int layout, const char* ofile);
+
 #endif

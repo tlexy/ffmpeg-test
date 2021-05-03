@@ -2,6 +2,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "sutil.h"
+
+extern "C"{
+#include <libavcodec/avcodec.h>
+#include <libavutil/channel_layout.h>
+#include <libavutil/common.h>
+#include <libavutil/frame.h>
+#include <libavutil/samplefmt.h>
+}
 
 int get_audio_obj_type(int aactype)
 {
@@ -474,3 +483,354 @@ void extra_video(const char* input_file, const char* output_file)
     fclose(output_fd);
     avformat_close_input(&fmt_ctx);
 }
+
+void file_to_image(const char* ifile, int st, int et, const char* prefix)
+{}
+
+
+void pcm2aac(const char* pcm_file, int channals, int rates, int layout, const char* ofile)
+{
+    AVCodec* codec;
+    AVFrame* frame;
+    AVPacket pkt;
+
+    codec = avcodec_find_encoder_by_name("libfdk_aac");
+    AVCodecContext* ctx = avcodec_alloc_context3(codec);
+
+    ctx->bit_rate = 192000;
+    ctx->sample_fmt = AV_SAMPLE_FMT_S16;
+    ctx->sample_rate = rates;
+    ctx->channel_layout = layout;
+    ctx->channels = channals;
+
+    avcodec_open2(ctx, codec, NULL);
+    FILE* file = fopen(ofile, "wb");
+
+    frame = av_frame_alloc();
+
+    frame->nb_samples = ctx->frame_size;
+    frame->format = ctx->sample_fmt;
+    frame->channel_layout = ctx->channel_layout;
+
+    int ret = av_frame_get_buffer(frame, 0);
+    std::string pcm_buff;
+    int psize = SUtil::readBinaryFile(pcm_file, pcm_buff);
+    printf("psize: %d\n", psize);
+    int pos = 0;
+    int flag = 0;
+    for (int i = 0; i < pcm_buff.size()/2/2; ++i)
+    {
+        printf("encode: %d-%d\n", i, frame->nb_samples);
+        av_init_packet(&pkt);
+        av_frame_make_writable(frame);
+        memcpy(frame->data, pcm_buff.c_str() + pos, frame->nb_samples*2*2);
+
+        flag = 0;
+        ret = avcodec_encode_audio2(ctx, &pkt, frame, &flag);
+        if (ret < 0)
+        {
+            printf("encode error.\n");
+            return;
+        }
+        if (flag)
+        {
+            fwrite(pkt.data, 1, pkt.size, file);
+            av_packet_unref(&pkt);
+        }
+    }
+
+    for(flag = 1; flag; 1)
+    {
+        flag = 0;
+        ret = avcodec_encode_audio2(ctx, &pkt, NULL, &flag);
+        if (ret < 0)
+        {
+            printf("encode error 2.\n");
+            return;
+        }
+        if (flag)
+        {
+            fwrite(pkt.data, 1, pkt.size, file);
+            av_packet_unref(&pkt);
+        }
+    }
+
+    fclose(file);
+    printf("close file\n");
+    av_frame_free(&frame);
+    avcodec_free_context(&ctx);
+
+}
+
+/*
+ * Copyright (c) 2001 Fabrice Bellard
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
+/**
+ * @file
+ * audio encoding with libavcodec API example.
+ *
+ * @example encode_audio.c
+ */
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+extern "C" {
+#include <libavcodec/avcodec.h>
+
+#include <libavutil/channel_layout.h>
+#include <libavutil/common.h>
+#include <libavutil/frame.h>
+#include <libavutil/samplefmt.h>
+}
+
+/* check that a given sample format is supported by the encoder */
+static int check_sample_fmt(const AVCodec *codec, enum AVSampleFormat sample_fmt)
+{
+    const enum AVSampleFormat *p = codec->sample_fmts;
+
+    while (*p != AV_SAMPLE_FMT_NONE) {
+        if (*p == sample_fmt)
+            return 1;
+        p++;
+    }
+    return 0;
+}
+
+/* just pick the highest supported samplerate */
+static int select_sample_rate(const AVCodec *codec)
+{
+    const int *p;
+    int best_samplerate = 0;
+
+    if (!codec->supported_samplerates)
+        return 44100;
+
+    p = codec->supported_samplerates;
+    while (*p) {
+        if (!best_samplerate || abs(44100 - *p) < abs(44100 - best_samplerate))
+            best_samplerate = *p;
+        p++;
+    }
+    return best_samplerate;
+}
+
+/* select layout with the highest channel count */
+static int select_channel_layout(const AVCodec *codec)
+{
+    const uint64_t *p;
+    uint64_t best_ch_layout = 0;
+    int best_nb_channels   = 0;
+
+    if (!codec->channel_layouts)
+        return AV_CH_LAYOUT_STEREO;
+
+    p = codec->channel_layouts;
+    while (*p) {
+        int nb_channels = av_get_channel_layout_nb_channels(*p);
+
+        if (nb_channels > best_nb_channels) {
+            best_ch_layout    = *p;
+            best_nb_channels = nb_channels;
+        }
+        p++;
+    }
+    return best_ch_layout;
+}
+
+int get_pcm_data(int byte_depth, int channels, int num, const std::string& buff, int pos)
+{
+    int count = byte_depth*num*channels;
+    if (buff.size() >= pos + count)
+    {
+        return pos;
+    }
+    return -1;
+}
+
+static void encode(AVCodecContext *ctx, AVFrame *frame, AVPacket *pkt,
+                   FILE *output)
+{
+    int ret;
+
+    /* send the frame for encoding */
+    ret = avcodec_send_frame(ctx, frame);
+    if (ret < 0) {
+        fprintf(stderr, "Error sending the frame to the encoder\n");
+        exit(1);
+    }
+
+    /* read all the available output packets (in general there may be any
+     * number of them */
+    while (ret >= 0) {
+        ret = avcodec_receive_packet(ctx, pkt);
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+            return;
+        else if (ret < 0) {
+            fprintf(stderr, "Error encoding audio frame\n");
+            exit(1);
+        }
+        printf("write data.\n");
+        fwrite(pkt->data, 1, pkt->size, output);
+        av_packet_unref(pkt);
+    }
+}
+
+void pcm2aac2(const char* pcm_path, int channals, int bit_rates, int layout, const char* ofile)
+{
+    const char *filename;
+    const AVCodec *codec;
+    AVCodecContext *c= NULL;
+    AVFrame *frame;
+    AVPacket *pkt;
+    int i, j, k, ret;
+    FILE *f;
+    uint16_t *samples;
+    float t, tincr;
+
+    /* find the MP2 encoder */
+    //codec = avcodec_find_encoder(AV_CODEC_ID_MP2);//AV_CODEC_ID_MP2
+    codec = avcodec_find_encoder_by_name("libfdk_aac");
+    if (!codec) {
+        fprintf(stderr, "Codec not found\n");
+        return;
+    }
+
+    c = avcodec_alloc_context3(codec);
+    if (!c) {
+        fprintf(stderr, "Could not allocate audio codec context\n");
+        return;
+    }
+
+    /* put sample parameters */
+    c->bit_rate = bit_rates;//比特率 64K？128K？192K？
+
+    /* check that the encoder supports s16 pcm input */
+    c->sample_fmt = AV_SAMPLE_FMT_S16;
+    if (!check_sample_fmt(codec, c->sample_fmt)) {
+        fprintf(stderr, "Encoder does not support sample format %s",
+                av_get_sample_fmt_name(c->sample_fmt));
+        return;
+    }
+
+    /* select other audio parameters supported by the encoder */
+    c->sample_rate    = 44100;//select_sample_rate(codec);
+    c->channel_layout = layout;//select_channel_layout(codec);
+    c->channels       = channals;//av_get_channel_layout_nb_channels(c->channel_layout);
+
+    printf("before open frame size: %d\n", c->frame_size);
+    /* open it */
+    if (avcodec_open2(c, codec, NULL) < 0) {
+        fprintf(stderr, "Could not open codec\n");
+        return;
+    }
+
+    f = fopen(ofile, "wb");
+    if (!f) {
+        fprintf(stderr, "Could not open %s\n", ofile);
+        return;
+    }
+
+    /* packet for holding encoded output */
+    pkt = av_packet_alloc();
+    if (!pkt) {
+        fprintf(stderr, "could not allocate the packet\n");
+        return;
+    }
+
+    /* frame containing input raw audio */
+    frame = av_frame_alloc();
+    if (!frame) {
+        fprintf(stderr, "Could not allocate audio frame\n");
+        return;
+    }
+
+    printf("after open frame size: %d\n", c->frame_size);
+    frame->nb_samples     = c->frame_size;
+    frame->format         = c->sample_fmt;
+    frame->channel_layout = c->channel_layout;
+
+    /* allocate the data buffers */
+    ret = av_frame_get_buffer(frame, 0);
+    if (ret < 0) {
+        fprintf(stderr, "Could not allocate audio data buffers\n");
+        return;
+    }
+
+
+    /* encode a single tone sound */
+    //t = 0;
+    //tincr = 2 * M_PI * 440.0 / c->sample_rate;
+    //for (i = 0; i < 200; i++) {
+    //    /* make sure the frame is writable -- makes a copy if the encoder
+    //     * kept a reference internally */
+    //    ret = av_frame_make_writable(frame);
+    //    if (ret < 0)
+    //        exit(1);
+    //    samples = (uint16_t*)frame->data[0];
+
+    //    for (j = 0; j < c->frame_size; j++) {
+    //        samples[2*j] = (int)(sin(t) * 10000);
+
+    //        for (k = 1; k < c->channels; k++)
+    //            samples[2*j + k] = samples[2*j];
+    //        t += tincr;
+    //    }
+    //    encode(c, frame, pkt, f);
+    //}
+
+    int pos = 0;
+    std::string pcm_buff;
+    int size = SUtil::readBinaryFile(pcm_path, pcm_buff);
+    if (size <= 0)
+    {
+        printf("input file is zero.\n");
+        return;
+    }
+    while (pos >= 0)
+    {
+        printf("before get data.\n");
+        ret = av_frame_make_writable(frame);
+        pos = get_pcm_data(sizeof(uint16_t), channals,  c->frame_size, pcm_buff, pos);
+        printf("pos: %d\n", pos);
+        if (pos > -1)
+        {
+            memcpy(frame->data[0], pcm_buff.c_str() + pos, c->frame_size*sizeof(uint16_t)*channals);
+            encode(c, frame, pkt, f);
+            pos += c->frame_size * sizeof(uint16_t)*channals;
+        }
+    }
+    printf("flush data.\n");
+    /* flush the encoder */
+    encode(c, NULL, pkt, f);
+
+    fclose(f);
+
+    av_frame_free(&frame);
+    av_packet_free(&pkt);
+    avcodec_free_context(&c);
+
+    return;
+}
+

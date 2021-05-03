@@ -51,7 +51,11 @@ int main(int argc, char *argv[])
 
     //extra_audio("G:\\video\\test1.mp4", "G:\\video\\test1.aac");
     //extra_video("G:\\video\\test1.mp4", "G:\\video\\test1.h264");
-    mp4_to_flv("G:\\video\\test1.mp4", "G:\\video\\test3.flv");
+    //mp4_to_flv("G:\\video\\test1.mp4", "G:\\video\\test3.flv");
+    //cut_video("G:\\video\\test1.mp4", 5, 50, "G:\\video\\test1_550.mp4");
+
+    //pcm2aac("G:\\video\\u9001645_ermeng_B.pcm", 2, 44100, AV_CH_LAYOUT_STEREO, "G:\\video\\out.aac");
+    pcm2aac2("G:\\video\\u9001645_ermeng_A.pcm", 2, 192000, AV_CH_LAYOUT_STEREO, "G:\\video\\ermeng_A.aac");
 
     return a.exec();
 }
