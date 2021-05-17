@@ -18,7 +18,8 @@ SOURCES += \
         main.cpp \
     ffmpeg_test_op.cpp \
     mp4_to_flv.cpp \
-    sutil.cpp
+    sutil.cpp \
+    common_func.cpp
 
 INCLUDEPATH += \
     $$PWD/../ffmpeg/include
@@ -40,4 +41,5 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 HEADERS += \
     ffmpeg_test_op.h \
     mp4_to_flv.h \
-    sutil.h
+    sutil.h \
+    common_func.h

@@ -6,11 +6,12 @@ extern "C"{
 }
 #include "ffmpeg_test_op.h"
 #include "mp4_to_flv.h"
+#include "common_func.h"
 
 void init()
 {
     av_log_set_level(AV_LOG_DEBUG);
-    av_register_all();
+    //av_register_all();
 }
 
 void log_test()
@@ -26,7 +27,7 @@ void dump_test()
     av_log_set_level(AV_LOG_DEBUG);
 
     AVFormatContext* fmt_ctx = NULL;
-    av_register_all();
+    //av_register_all();
 
     const char* file_name = "G:\\video\\test1.mp4";
     int ret = avformat_open_input(&fmt_ctx, file_name, NULL, NULL);
@@ -55,7 +56,8 @@ int main(int argc, char *argv[])
     //cut_video("G:\\video\\test1.mp4", 5, 50, "G:\\video\\test1_550.mp4");
 
     //pcm2aac("G:\\video\\u9001645_ermeng_B.pcm", 2, 44100, AV_CH_LAYOUT_STEREO, "G:\\video\\out.aac");
-    pcm2aac2("G:\\video\\u9001645_ermeng_A.pcm", 2, 192000, AV_CH_LAYOUT_STEREO, "G:\\video\\ermeng_A.aac");
+    //pcm2aac2("G:\\video\\u9001645_ermeng_A.pcm", 2, 192000, AV_CH_LAYOUT_STEREO, "G:\\video\\ermeng_A.aac");
 
+    decode_audio_to_raw("G:\\video\\test1.mp4");
     return a.exec();
 }
